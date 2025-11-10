@@ -1,136 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Video Debug Page</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 24px; background:#fafafa; color:#222; }
-    h1 { margin-top:0; }
-    #video-wrap { text-align:center; margin-top:18px; }
-    video { width: 640px; max-width: 100%; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
-    #diagnostics { margin-top:18px; background:#fff; padding:12px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
-    pre { background:#f4f4f4; padding:10px; border-radius:6px; overflow:auto; }
-    #dropArea { margin-top:12px; padding:12px; border:2px dashed #ddd; border-radius:8px; }
-    .error { color:#b00020; font-weight:600; }
-    .ok { color:#0a7a0a; font-weight:600; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Climb On!</title>
 </head>
-<body>
-  <h1>Climb On! — Video Debugger</h1>
-  <p>Drop a video file into the box below to test it, or use the default <code>video.mp4</code> in this folder.</p>
+<body style="text-align:center; margin-top:50px;">
 
-  <div id="video-wrap">
-    <video id="player" controls preload="metadata">
-      <source id="src" src="video.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  </div>
+  <h2>Climb On! Video Instructions</h2>
 
-  <div id="diagnostics">
-    <div><strong>Status:</strong> <span id="status">Waiting to load</span></div>
-    <div><strong>Network state:</strong> <span id="networkState">—</span>  |  <strong>Ready state:</strong> <span id="readyState">—</span></div>
-    <div id="errorBox"></div>
+  <video width="640" height="360" controls>
+    <source src="video.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
 
-    <div style="margin-top:10px;">
-      <strong>Quick checklist:</strong>
-      <ul>
-        <li>Is the file named exactly <code>video.mp4</code> (case-sensitive on some systems)?</li>
-        <li>Is the video file a valid MP4 encoded with H.264 video + AAC audio? (common compatibility)</li>
-        <li>If you opened the file via <code>file://</code> and it still fails, try serving it with a simple local HTTP server (instructions below).</li>
-      </ul>
-    </div>
-
-    <div style="margin-top:8px;">
-      <strong>Helpful commands:</strong>
-      <pre>
-# start a simple local server (Python 3) and open http://localhost:8000
-python -m http.server 8000
-
-# convert/encode to H.264 + AAC with ffmpeg
-ffmpeg -i input.mov -c:v libx264 -crf 23 -preset medium -c:a aac -b:a 128k video.mp4
-      </pre>
-    </div>
-  </div>
-
-  <div id="dropArea">Drag & Drop a video file here (or click to pick)</div>
-
-  <script>
-    const player = document.getElementById('player');
-    const src = document.getElementById('src');
-    const status = document.getElementById('status');
-    const netState = document.getElementById('networkState');
-    const readyState = document.getElementById('readyState');
-    const errorBox = document.getElementById('errorBox');
-    const dropArea = document.getElementById('dropArea');
-
-    function updateStates() {
-      const netNames = ['NETWORK_EMPTY','NETWORK_IDLE','NETWORK_LOADING','NETWORK_NO_SOURCE'];
-      const readyNames = ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'];
-      netState.textContent = (netNames[player.networkState] || player.networkState);
-      readyState.textContent = (readyNames[player.readyState] || player.readyState);
-    }
-
-    function showError(err) {
-      if (!err) { errorBox.innerHTML = ''; return; }
-      const code = err.code;
-      const map = {
-        1: 'MEDIA_ERR_ABORTED — fetching process aborted by user.',
-        2: 'MEDIA_ERR_NETWORK — network error prevented fetching.',
-        3: 'MEDIA_ERR_DECODE — media decoding error (unsupported codec or corrupted file).',
-        4: 'MEDIA_ERR_SRC_NOT_SUPPORTED — media source not supported.'
-      };
-      errorBox.innerHTML = `<p class="error">Error: ${map[code] || 'Unknown error'} (code ${code})</p>`;
-    }
-
-    // wire up events
-    ['loadstart','loadedmetadata','loadeddata','canplay','canplaythrough','play','playing','error','stalled','suspend'].forEach(ev => {
-      player.addEventListener(ev, (e) => {
-        console.log('video event:', e.type, e);
-        status.textContent = e.type;
-        updateStates();
-        if (e.type === 'error') {
-          showError(player.error);
-        }
-      });
-    });
-
-    updateStates();
-    showError(null);
-
-    // drag & drop
-    ;['dragenter','dragover','dragleave','drop'].forEach(eventName => {
-      dropArea.addEventListener(eventName, preventDefaults, false)
-    });
-    function preventDefaults(e){ e.preventDefault(); e.stopPropagation(); }
-
-    dropArea.addEventListener('drop', handleDrop, false);
-    dropArea.addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.type = 'file';
-      inp.accept = 'video/*';
-      inp.onchange = () => handleFiles([inp.files[0]]);
-      inp.click();
-    });
-
-    function handleDrop(e) {
-      const dt = e.dataTransfer;
-      const files = dt.files;
-      if (files && files[0]) handleFiles(files);
-    }
-
-    function handleFiles(files) {
-      const file = files[0];
-      if (!file) return;
-      const url = URL.createObjectURL(file);
-      src.src = url;
-      // try to set the MIME if possible
-      if (file.type) src.type = file.type;
-      player.load();
-      player.play().catch(()=>{ /* autoplay may be blocked — ok */ });
-      dropArea.textContent = `Loaded: ${file.name} (${Math.round(file.size/1024)} KB)`;
-      console.log('Loaded file via blob URL', file);
-    }
-  </script>
 </body>
 </html>
